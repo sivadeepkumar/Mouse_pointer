@@ -5,7 +5,7 @@ const keyHandler = require("node-key-sender");
 const startX = 1500;
 const endX = 500;
 const y = 500;
-const totalDuration = 30 * 60 * 1000; // Keep the same slow speed
+const totalDuration = 700000; // Keep the same slow speed
 const step = 0.7;
 const steps = Math.abs(startX - endX) / step;
 const delayPerStep = totalDuration / steps;
@@ -42,6 +42,7 @@ function checkMousePosition() {
 }
 
 // Function to perform the horizontal line drawing
+// This will continuously draw horizontal lines until ESC key is pressed
 async function drawHorizontalLine(customStartX = startX) {
   console.log("Starting horizontal line drawing...");
   isRunning = true;
@@ -71,22 +72,29 @@ async function drawHorizontalLine(customStartX = startX) {
   // Reset position tracker before starting movement
   lastKnownPosition = robot.getMousePos();
   
-  // Calculate how far to go horizontally
-  const targetEndX = customStartX === startX ? endX : Math.max(customStartX - (startX - endX), 10);
-  
-  // Start mouse movement
-  for (let x = startingX; x >= targetEndX && isRunning; x -= step) {
-    robot.moveMouse(x, startingY);
-    await new Promise(res => setTimeout(res, delayPerStep));
+  // Start continuous horizontal drawing - will only stop when ESC is pressed
+  // or when user intervention is detected
+  while (isRunning) {
+    // Calculate how far to go horizontally for this pass
+    const targetEndX = customStartX === startX ? endX : Math.max(customStartX - (startX - endX), 10);
+    
+    // Move from right to left
+    for (let x = startingX; x >= targetEndX && isRunning; x -= step) {
+      robot.moveMouse(x, startingY);
+      await new Promise(res => setTimeout(res, delayPerStep));
+    }
+    
+    // If still running, reset position and continue
+    if (isRunning) {
+      // Move back to start position (without releasing mouse)
+      robot.moveMouse(startingX, startingY);
+      console.log("Continuing horizontal line drawing...");
+    }
   }
   
-  // Release mouse if we're still running
-  if (isRunning) {
-    robot.mouseToggle("up");
-    console.log("Horizontal line drawing completed.");
-  }
-  
-  isRunning = false;
+  // Release mouse when we're done (ESC pressed or interrupted)
+  robot.mouseToggle("up");
+  console.log("Horizontal line drawing stopped.");
 }
 
 // Function to monitor user intervention
@@ -109,6 +117,7 @@ function startMonitoring() {
 }
 
 // Function to handle interruption and restart
+// This will temporarily pause the drawing and then resume from the current position
 function handleInterruption() {
   if (!isRunning) return;
   
@@ -125,7 +134,7 @@ function handleInterruption() {
     
     // Pass current X position to restart from there
     drawHorizontalLine(currentPos.x);
-  }, 3000); // Changed to 3 seconds as requested
+  }, 3000); // 3-second delay before restarting
 }
 
 // Function to initiate a scheduled draw after delay
@@ -218,9 +227,10 @@ function setupKeyboardShortcuts() {
 // Main execution
 console.log("Starting in 3 seconds. Please navigate to TradingView chart...");
 console.log("Keyboard controls:");
-console.log("- Press ESC to terminate the script");
+console.log("- Press ESC to terminate the script and stop drawing");
 console.log("- Press Command+P to schedule a new horizontal line draw (5-second delay)");
 console.log("- When you move the mouse, drawing will pause and restart after 3 seconds");
+console.log("- Horizontal line drawing will continue indefinitely until ESC is pressed");
 
 // Start keyboard monitoring
 setupKeyboardShortcuts();
